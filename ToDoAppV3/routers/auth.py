@@ -1,13 +1,23 @@
-from fastapi import APIRouter
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
+from fastapi import APIRouter, Depends
 from starlette import status
 from pydantic import BaseModel
 from pwdlib import PasswordHash
+from fastapi.security import OAuth2PasswordRequestForm
+import jwt
 from ..models import Users
 from ..dependencies import db_dependency
+
+SECRET_KEY = '83e42b6825405f0f7d07f4b5db17ad13ebe6fa439a8ed7718d8e445093544545'
+ALGORITHM = 'HS256'
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 pwd_context = PasswordHash.recommended()
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class CreateUserRequest(BaseModel):
     username: str
@@ -17,9 +27,27 @@ class CreateUserRequest(BaseModel):
     password: str
     role: str
 
-@router.post("/token", status_code=status.HTTP_201_CREATED)
-async def log_in_for_access_token():
-    return 'token'
+def authenticate_user(username: str, password: str, db: db_dependency):
+    user = db.query(Users).filter(Users.username == username).first()
+    if not user:
+        return False
+    if not pwd_context.verify(password, user.hashed_password):
+        return False
+    return user
+
+def create_access_token(username:str, user_id: int, exprires_delta: timedelta):
+    expires = datetime.now(timezone.utc) + exprires_delta
+    encode = {'sub': username, 'id': user_id, 'exp': expires}
+    return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+@router.post("/token", response_model=Token)
+async def log_in_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency):
+    user = authenticate_user(form_data.username, form_data.password, db)
+    if not user:
+        return 'Failed authentication'
+    token = create_access_token(user.username, user.id, timedelta(minutes=30))
+    return {'access_token': token, 'token_type': 'bearer'}
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency, create_user_request: CreateUserRequest):
