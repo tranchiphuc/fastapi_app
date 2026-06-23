@@ -5,7 +5,7 @@ from pwdlib import PasswordHash
 from ..models import Users
 from ..dependencies import db_dependency
 
-router = APIRouter(prefix='/users', tags=['users'])
+router = APIRouter(prefix='/auth', tags=['auth'])
 pwd_context = PasswordHash.recommended()
 
 
@@ -16,6 +16,10 @@ class CreateUserRequest(BaseModel):
     last_name: str
     password: str
     role: str
+
+@router.post("/token", status_code=status.HTTP_201_CREATED)
+async def log_in_for_access_token():
+    return 'token'
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency, create_user_request: CreateUserRequest):
