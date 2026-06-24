@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from pydantic import BaseModel
 from pwdlib import PasswordHash
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 from ..models import Users
 from ..dependencies import db_dependency
@@ -14,6 +14,7 @@ ALGORITHM = 'HS256'
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 pwd_context = PasswordHash.recommended()
+oauth2_bearer = OAuth2PasswordBearer(tokenUrl='auth/token')
 
 class Token(BaseModel):
     access_token: str
@@ -40,12 +41,25 @@ def create_access_token(username:str, user_id: int, exprires_delta: timedelta):
     encode = {'sub': username, 'id': user_id, 'exp': expires}
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
 
+async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
+    try:
+        payload = jwt.decode(token, key=SECRET_KEY, algorithms=ALGORITHM)
+        username = payload.get('sub')
+        user_id = payload.get('id')
+        if username is None or user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User can not be validated")
+        return {'username': username, 'id': user_id}
+    except jwt.exceptions.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is invalid or expired")
+
+
+
 
 @router.post("/token", response_model=Token)
 async def log_in_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency):
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
-        return 'Failed authentication'
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate user.")
     token = create_access_token(user.username, user.id, timedelta(minutes=30))
     return {'access_token': token, 'token_type': 'bearer'}
 
@@ -63,10 +77,4 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
     db.add(create_user_model)
     db.commit()
     return create_user_model
-
-
-@router.get("/", status_code=status.HTTP_200_OK)
-async def get_user(db: db_dependency):
-    users = db.query(Users).all()
-    return users
 

@@ -2,10 +2,10 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 from starlette import status
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path
 from ..dependencies import db_dependency
 from ..models import Todos
-
+from .auth import get_current_user
 
 
 class TodoRequest(BaseModel):
@@ -15,6 +15,7 @@ class TodoRequest(BaseModel):
     complete: bool
 
 router = APIRouter()
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @router.put("/todo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def put_todo(db: db_dependency, todo_id: Annotated[int, Path(gt=0)], todo_request: TodoRequest):
@@ -41,14 +42,17 @@ def delete_todo(db: db_dependency, todo_id: Annotated[int, Path(gt=0)]):
     return
 
 @router.post("/todo", status_code=status.HTTP_201_CREATED)
-def post_todo(db: db_dependency, todo_request: TodoRequest):
-    todo_model = Todos(**todo_request.model_dump())
+def post_todo(user: user_dependency, db: db_dependency, todo_request: TodoRequest):
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication Failed")
+    
+    todo_model = Todos(**todo_request.model_dump(), owner_id=user.get('id'))
     db.add(todo_model)
     db.commit()
 
 @router.get("/", status_code=status.HTTP_200_OK)
-def read_all(db: db_dependency):
-    return db.query(Todos).all()
+def read_all(user: user_dependency, db: db_dependency):
+    return db.query(Todos).filter(Todos.owner_id == user.get('id')).all()
 
 @router.get("/todo/{todo_id}", status_code=status.HTTP_200_OK)
 def read_todo_by_id(db: db_dependency, todo_id: int = Path(gt=0)):
