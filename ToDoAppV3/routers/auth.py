@@ -36,9 +36,9 @@ def authenticate_user(username: str, password: str, db: db_dependency):
         return False
     return user
 
-def create_access_token(username:str, user_id: int, exprires_delta: timedelta):
+def create_access_token(username:str, user_id: int, role: str, exprires_delta: timedelta):
     expires = datetime.now(timezone.utc) + exprires_delta
-    encode = {'sub': username, 'id': user_id, 'exp': expires}
+    encode = {'sub': username, 'id': user_id, 'role': role, 'exp': expires}
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
@@ -46,9 +46,10 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
         payload = jwt.decode(token, key=SECRET_KEY, algorithms=ALGORITHM)
         username = payload.get('sub')
         user_id = payload.get('id')
-        if username is None or user_id is None:
+        role = payload.get('role')
+        if username is None or user_id is None or role is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User can not be validated")
-        return {'username': username, 'id': user_id}
+        return {'username': username, 'id': user_id, 'role': role}
     except jwt.exceptions.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is invalid or expired")
 
@@ -60,7 +61,7 @@ async def log_in_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate user.")
-    token = create_access_token(user.username, user.id, timedelta(minutes=30))
+    token = create_access_token(user.username, user.id, user.role, timedelta(minutes=30))
     return {'access_token': token, 'token_type': 'bearer'}
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
