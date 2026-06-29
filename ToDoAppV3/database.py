@@ -4,14 +4,16 @@ from sqlalchemy.orm import DeclarativeBase
 
 from pathlib import Path
 
-
-# SQLALCHEMY_DATABASE_URL = f"sqlite:///{Path(__file__).parent / 'todosapp.db'}"
+# SQLite3
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{Path(__file__).parent / 'todosapp.db'}"
 # SQLALCHEMY_DATABASE_URL = 'sqlite:///./todos.db'
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False}, pool_size=10, max_overflow=20)
 
-SQLALCHEMY_DATABASE_URL = "postgresql+psycopg://asus:asus@localhost/TodoApp"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# PostgresSQL
+# SQLALCHEMY_DATABASE_URL = "postgresql+psycopg://asus:asus@localhost/TodoApp"
+# engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
-# engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False}, pool_size=10, max_overflow=20)
+
 SessionLocal = sessionmaker(autoflush=False, bind=engine)
 class Base(DeclarativeBase):
     pass

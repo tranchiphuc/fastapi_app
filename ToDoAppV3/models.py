@@ -1,3 +1,4 @@
+from sqlalchemy.orm import instrumentation
 from sqlalchemy import Column, ForeignKey, Integer, String, Boolean
 from .database import Base
 
@@ -9,8 +10,9 @@ class Users(Base):
     first_name = Column(String)
     last_name = Column(String)
     hashed_password = Column(String)
-    role = Column(String)
     is_active = Column(Boolean, default=True)
+    role = Column(String)
+    phone_number = Column(String)
 
 
 class Todos(Base):
