@@ -3,11 +3,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from pathlib import Path
+from datetime import timedelta
 import pytest
 from ..database import Base
 from ..main import app
 from ..models import Todos, Users
-from ..routers.auth import pwd_context
+from ..routers.auth import pwd_context, create_access_token   
 
 # SQLite3
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{Path(__file__).parent / 'test.db'}"
@@ -29,7 +30,7 @@ def override_get_db():
         db.close()
 
 def override_get_current_user():
-    return {'username': 'codingwithrobytest', 'id': 1, 'user_role': 'admin'}
+    return {'username': 'phuctc', 'id': 1, 'user_role': 'admin'}
 
 TestingSessionLocal = sessionmaker(autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
@@ -43,7 +44,16 @@ TODO_DICT = {"title": "Learn to code!",
         "owner_id": 1
         }
 
+TODO_DICT_NEW = {"title": "New todo!",
+        "description": "New todo for test!",
+        "priority": 4,
+        "complete": False,
+        "owner_id": 1
+        }
+
+
 USER_DICT = {
+        "id": 1,
         "username": "phuctc",
         "email": "phuctc@email.com",
         "first_name": "Phuc",
@@ -53,8 +63,15 @@ USER_DICT = {
         "phone_number": "0909090909"       
         }
 
+TOKEN = create_access_token(
+    USER_DICT.get('username'), 
+    USER_DICT.get('id'), 
+    USER_DICT.get('role'), 
+    timedelta(days=1)
+    )
+
 @pytest.fixture
-def create_todo():
+def pytest_create_todo():
     todo = Todos(**TODO_DICT)
     db = TestingSessionLocal()
     db.add(todo)
@@ -65,7 +82,7 @@ def create_todo():
         connection.commit()
 
 @pytest.fixture
-def create_user():
+def pytest_create_user():
     user = Users(**USER_DICT)
     db = TestingSessionLocal()
     db.add(user)
@@ -74,5 +91,6 @@ def create_user():
     with engine.connect() as connection:
         connection.execute(text("DELETE FROM users;"))
         connection.commit()    
+
 
 
