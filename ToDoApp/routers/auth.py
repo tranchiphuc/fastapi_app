@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
-from starlette import status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
 from pydantic import BaseModel
 from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
+import os
+
 from ..models import Users
 from ..dependencies import db_dependency
 
@@ -29,12 +32,28 @@ class CreateUserRequest(BaseModel):
     role: str
     phone_number: str
 
+### Pages ###
+AUTH_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=os.path.join(AUTH_DIR, 'templates'))
+
+@router.get("/login-page")
+def render_login_page(req: Request):
+    return templates.TemplateResponse(
+    request=req,
+    name='login.html',
+    context={})
+
+@router.get("/register-page")
+def render_register_page(req: Request):
+    return templates.TemplateResponse(request=req, name="register.html", context={})
+### End Pages ###
+
 def authenticate_user(username: str, password: str, db: db_dependency):
     user = db.query(Users).filter(Users.username == username).first()
     if not user:
-        return False
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     if not pwd_context.verify(password, user.hashed_password):
-        return False
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     return user
 
 def create_access_token(username:str, user_id: int, role: str, exprires_delta: timedelta):
@@ -50,12 +69,11 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
         user_id = payload.get('id')
         role = payload.get('role')
         if username is None or user_id is None or role is None:
+            print("\nDebug - Payload error=", payload, "\n")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User can not be validated")
         return {'username': username, 'id': user_id, 'role': role}
     except jwt.exceptions.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is invalid or expired")
-
-
 
 
 @router.post("/token", response_model=Token)
@@ -76,7 +94,8 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
         role = create_user_request.role,
         is_active = True,
         phone_number = create_user_request.phone_number,
-        hashed_password = pwd_context.hash(create_user_request.password)
+        hashed_password = pwd_context.hash(create_user_request.password),
+        # hashed_password = create_user_request.password
     )
     db.add(create_user_model)
     db.commit()

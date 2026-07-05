@@ -1,8 +1,9 @@
 from typing import Annotated
 from pydantic import BaseModel, Field
-from starlette import status
+from starlette.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi.templating import Jinja2Templates
 
-from fastapi import APIRouter, Depends, HTTPException, Path
 from ..dependencies import db_dependency
 from ..models import Todos
 from .auth import get_current_user
@@ -51,7 +52,6 @@ def delete_todo(user: user_dependency, db: db_dependency, todo_id: Annotated[int
 def create_todo(user: user_dependency, db: db_dependency, todo_request: TodoRequest):
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication Failed")
-    
     todo_model = Todos(**todo_request.model_dump(), owner_id=user.get('id'))
     db.add(todo_model)
     db.commit()

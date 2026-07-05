@@ -30,27 +30,36 @@ def override_get_db():
         db.close()
 
 def override_get_current_user():
-    return {'username': 'phuctc', 'id': 1, 'user_role': 'admin'}
+    return {'username': 'phuctc', 'id': 1, 'user_role': 'admin', 'phone_number': '090909090'}
 
 TestingSessionLocal = sessionmaker(autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 client = TestClient(app)
 
 
-TODO_DICT = {"title": "Learn to code!",
-        "description": "Need to learn everyday!",
+TODO_DICT = {
+        "title": "1st todo",
+        "description": "Test 01",
         "priority": 5,
         "complete": False,
-        "owner_id": 1
+        "owner_id": 1,
         }
 
-TODO_DICT_NEW = {"title": "New todo!",
-        "description": "New todo for test!",
+TODO_DICT_NEW = {
+        "title": "2nd todo!",
+        "description": "Test 02",
         "priority": 4,
         "complete": False,
-        "owner_id": 1
+        "owner_id": 1,
         }
 
+TODO_DICT_UPDATE = {
+        "title": "03 todo!",
+        "description": "Test 03",
+        "priority": 3,
+        "complete": False,
+        "owner_id": 1,
+        }
 
 USER_DICT = {
         "id": 1,
@@ -59,17 +68,19 @@ USER_DICT = {
         "first_name": "Phuc",
         "last_name": "Tran",
         "hashed_password": pwd_context.hash("Happy@111"),
+        # "hashed_password": "Happy@111",
         "role": "admin",
         "phone_number": "0909090909"       
         }
 
-TOKEN = create_access_token(
-    USER_DICT.get('username'), 
-    USER_DICT.get('id'), 
-    USER_DICT.get('role'), 
-    timedelta(days=1)
-    )
+@pytest.fixture
+def pytest_clear_todo():
+    with engine.connect() as connection:
+        connection.execute(text("DELETE FROM todos;"))
+        connection.commit()
 
+
+# @pytest.fixture(scope="module")
 @pytest.fixture
 def pytest_create_todo():
     todo = Todos(**TODO_DICT)
@@ -81,7 +92,7 @@ def pytest_create_todo():
         connection.execute(text("DELETE FROM todos;"))
         connection.commit()
 
-@pytest.fixture
+@pytest.fixture()
 def pytest_create_user():
     user = Users(**USER_DICT)
     db = TestingSessionLocal()
@@ -90,7 +101,44 @@ def pytest_create_user():
     yield user
     with engine.connect() as connection:
         connection.execute(text("DELETE FROM users;"))
-        connection.commit()    
+        connection.commit()   
 
+TOKEN = create_access_token(
+    USER_DICT.get('username'), 
+    USER_DICT.get('id'), 
+    USER_DICT.get('role'), 
+    timedelta(days=1)
+    )
 
+def compare_user_object_and_dict(user_obj, user_dict):
+    if user_obj.username != user_dict.get("username"):
+        return False
+    if user_obj.email != user_dict.get("email"):
+        return False    
+    if user_obj.role != user_dict.get("role"):
+        return False
+    if user_obj.phone_number != user_dict.get("phone_number"):
+        return False
+    return True
+
+def get_todo_by_id_from_db(id):
+    db = TestingSessionLocal()
+    todo_model = db.query(Todos).filter(Todos.id==id).first()
+    return todo_model
+
+def get_user_by_username_from_db(username):
+    db = TestingSessionLocal()
+    user_model = db.query(Users).filter(Users.username==username).first()
+    return user_model
+
+def compare_todo_object_and_dict(todo_obj, todo_dict):
+    if todo_obj.title != todo_dict.get("title"):
+        return False
+    if todo_obj.description != todo_dict.get("description"):
+        return False    
+    if todo_obj.priority != todo_dict.get("priority"):
+        return False
+    if todo_obj.complete != todo_dict.get("complete"):
+        return False
+    return True
 
